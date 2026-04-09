@@ -473,11 +473,11 @@ async def create_folder(
         )
 
     # Create the filter
-    from telethon.tl.types import DialogFilter
+    from telethon.tl.types import DialogFilter, TextWithEntities
 
     new_filter = DialogFilter(
         id=new_id,
-        title=title,
+        title=TextWithEntities(text=title, entities=[]),
         pinned_peers=[],
         include_peers=[],
         exclude_peers=[],
