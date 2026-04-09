@@ -24,11 +24,11 @@ def _auto_import_ops() -> None:
         module_name = f"tg_mcp.ops.{module_info.name}"
         try:
             importlib.import_module(module_name)
-            logger.debug("ops.loaded", extra={"module": module_name})
+            logger.debug("ops.loaded", extra={"op_module": module_name})
         except Exception:
             logger.exception(
                 "ops.load_failed",
-                extra={"module": module_name},
+                extra={"op_module": module_name},
             )
 
 

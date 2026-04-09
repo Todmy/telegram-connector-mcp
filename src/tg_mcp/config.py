@@ -178,6 +178,7 @@ def configure_logging() -> None:
         return
 
     root.setLevel(logging.DEBUG)
+    root.propagate = False  # Don't leak to MCP SDK's rich handler
 
     # File handler: JSON, rotating, 5MB x 3
     try:

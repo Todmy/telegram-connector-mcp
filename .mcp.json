@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "telegram-mcp": {
+      "command": "/opt/homebrew/bin/python3.11",
+      "args": ["-m", "tg_mcp"],
+      "cwd": "/Users/todmy/github/telegram-mcp"
+    }
+  }
+}
