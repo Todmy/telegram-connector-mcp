@@ -13,8 +13,13 @@ from telethon.errors import (
     ChannelPrivateError,
     FloodWaitError,
 )
-from telethon.tl.functions.channels import GetFullChannelRequest
-from telethon.tl.types import Channel, Chat
+from telethon.tl.functions.account import UpdateNotifySettingsRequest
+from telethon.tl.functions.channels import (
+    GetFullChannelRequest,
+    JoinChannelRequest,
+    LeaveChannelRequest,
+)
+from telethon.tl.types import Channel, Chat, InputNotifyPeer, InputPeerNotifySettings
 
 from tg_mcp import toon
 from tg_mcp.cache import Cache, CacheCategory, make_cache_key
@@ -389,6 +394,206 @@ async def channel_stats(
     )
 
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# subscribe (T031)
+# ---------------------------------------------------------------------------
+
+
+@operation(
+    name="subscribe",
+    category="channels",
+    description="Join/subscribe to a channel by @handle or t.me link",
+    destructive=False,
+    idempotent=True,
+)
+async def subscribe(
+    client: Any,
+    channel: str,
+    cache: Cache | None = None,
+) -> str:
+    """Join a Telegram channel."""
+    if not channel or not channel.strip():
+        raise OperationError(
+            what="channel parameter is required",
+            expected="@handle or t.me link",
+            example='tg_execute op="subscribe" params={"channel": "@llm_under_hood"}',
+            recovery="provide a channel identifier",
+        )
+
+    channel = channel.strip()
+
+    # Resolve entity (may already be subscribed — that's fine, idempotent)
+    try:
+        entity = await _resolve_single_channel(client, channel)
+    except OperationError:
+        # If resolution fails, try direct get_entity for unsubscribed channels
+        import re
+        handle_re = re.compile(r"^@?([a-zA-Z][a-zA-Z0-9_]{3,30}[a-zA-Z0-9])$")
+        link_re = re.compile(
+            r"^https?://(?:t\.me|telegram\.me)/(?:\+|joinchat/)?([a-zA-Z0-9_]+)$"
+        )
+        username = None
+        link_match = link_re.match(channel)
+        if link_match:
+            username = link_match.group(1)
+        else:
+            handle_match = handle_re.match(channel)
+            if handle_match:
+                username = handle_match.group(1)
+
+        if username is None:
+            raise OperationError(
+                what=f"Cannot resolve {channel!r} — need @handle or t.me link to subscribe",
+                expected="@handle or t.me link",
+                example='tg_execute op="subscribe" params={"channel": "@llm_under_hood"}',
+                recovery="provide a valid @handle or t.me link",
+            )
+
+        try:
+            entity = await client.get_entity(username)
+        except Exception as exc:
+            raise OperationError(
+                what=f"Channel @{username} not found: {type(exc).__name__}: {exc}",
+                expected="existing public channel",
+                example='tg_execute op="subscribe" params={"channel": "@llm_under_hood"}',
+                recovery="check the handle spelling",
+            ) from exc
+
+    try:
+        await client(JoinChannelRequest(entity))
+    except FloodWaitError as e:
+        raise TelegramFloodWait(e.seconds) from e
+    except ChannelPrivateError:
+        raise OperationError(
+            what=f"Channel {channel} is private — cannot join without invite",
+            expected="public channel or valid invite link",
+            example='tg_execute op="subscribe" params={"channel": "@public_channel"}',
+            recovery="use a t.me/+invite link for private channels",
+        )
+    except Exception as exc:
+        logger.exception("ops.subscribe_error", extra={"channel": channel})
+        raise OperationError(
+            what=f"Failed to join {channel}: {type(exc).__name__}: {exc}",
+            expected="successful channel join",
+            example=f'tg_execute op="subscribe" params={{"channel": "{channel}"}}',
+            recovery="check that the channel exists and is accessible",
+        ) from exc
+
+    handle = getattr(entity, "username", None)
+    handle_display = f"@{handle}" if handle else getattr(entity, "title", channel)
+    title = getattr(entity, "title", "")
+
+    lines = [f"Subscribed to {title} ({handle_display})."]
+    lines.append("")
+    lines.append(toon.hint(f'Read messages: tg_feed channel="{handle_display}"'))
+
+    return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# unsubscribe (T031)
+# ---------------------------------------------------------------------------
+
+
+@operation(
+    name="unsubscribe",
+    category="channels",
+    description="Leave/unsubscribe from a channel. This is destructive — you may lose access to private channels",
+    destructive=True,
+    idempotent=True,
+)
+async def unsubscribe(
+    client: Any,
+    channel: str,
+    cache: Cache | None = None,
+) -> str:
+    """Leave a Telegram channel."""
+    if not channel or not channel.strip():
+        raise OperationError(
+            what="channel parameter is required",
+            expected="@handle, t.me link, or channel title",
+            example='tg_execute op="unsubscribe" params={"channel": "@some_channel"} confirm=true',
+            recovery="provide a channel identifier",
+        )
+
+    channel = channel.strip()
+    entity = await _resolve_single_channel(client, channel)
+
+    try:
+        await client(LeaveChannelRequest(entity))
+    except FloodWaitError as e:
+        raise TelegramFloodWait(e.seconds) from e
+    except Exception as exc:
+        logger.exception("ops.unsubscribe_error", extra={"channel": channel})
+        raise OperationError(
+            what=f"Failed to leave {channel}: {type(exc).__name__}: {exc}",
+            expected="successful channel leave",
+            example=f'tg_execute op="unsubscribe" params={{"channel": "{channel}"}} confirm=true',
+            recovery="check channel access and retry",
+        ) from exc
+
+    handle = getattr(entity, "username", None)
+    handle_display = f"@{handle}" if handle else getattr(entity, "title", channel)
+
+    return f"Unsubscribed from {handle_display}."
+
+
+# ---------------------------------------------------------------------------
+# mute_channel (T031)
+# ---------------------------------------------------------------------------
+
+
+@operation(
+    name="mute_channel",
+    category="channels",
+    description="Mute or unmute a channel. Muted channels won't send push notifications",
+    destructive=False,
+    idempotent=True,
+)
+async def mute_channel(
+    client: Any,
+    channel: str,
+    mute: bool = True,
+    cache: Cache | None = None,
+) -> str:
+    """Mute or unmute a channel."""
+    if not channel or not channel.strip():
+        raise OperationError(
+            what="channel parameter is required",
+            expected="@handle, t.me link, or channel title",
+            example='tg_execute op="mute_channel" params={"channel": "@llm_under_hood", "mute": true}',
+            recovery="provide a channel identifier",
+        )
+
+    channel = channel.strip()
+    entity = await _resolve_single_channel(client, channel)
+
+    # mute_until = max int32 means "forever". 0 means unmuted.
+    mute_until = 2**31 - 1 if mute else 0
+
+    try:
+        await client(UpdateNotifySettingsRequest(
+            peer=InputNotifyPeer(entity),
+            settings=InputPeerNotifySettings(mute_until=mute_until),
+        ))
+    except FloodWaitError as e:
+        raise TelegramFloodWait(e.seconds) from e
+    except Exception as exc:
+        logger.exception("ops.mute_channel_error", extra={"channel": channel, "mute": mute})
+        raise OperationError(
+            what=f"Failed to {'mute' if mute else 'unmute'} {channel}: {type(exc).__name__}: {exc}",
+            expected="successful notification settings update",
+            example=f'tg_execute op="mute_channel" params={{"channel": "{channel}", "mute": {str(mute).lower()}}}',
+            recovery="check channel access and retry",
+        ) from exc
+
+    handle = getattr(entity, "username", None)
+    handle_display = f"@{handle}" if handle else getattr(entity, "title", channel)
+    action = "Muted" if mute else "Unmuted"
+
+    return f"{action} {handle_display}."
 
 
 # ---------------------------------------------------------------------------

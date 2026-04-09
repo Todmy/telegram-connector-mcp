@@ -122,9 +122,9 @@
 
 **Independent Test**: Create folder → move channel into it → verify folder contents
 
-- [ ] T029 [P] [US6] Implement list_folders and folder_contents operations in src/tg_mcp/ops/folders.py — list all folders with channel counts (TOON), list channels in specific folder with metrics
-- [ ] T030 [P] [US6] Implement move_to_folder and create_folder operations in src/tg_mcp/ops/folders.py — move channel to folder (invalidate folder cache), create new folder by name, return confirmation
-- [ ] T031 [US6] Implement subscribe, unsubscribe, and mute_channel operations in src/tg_mcp/ops/channels.py — subscribe by handle/link, unsubscribe with destructive=True + confirm gate (show subscriber count in warning, include re-subscribe hint on success), mute/unmute notifications. Invalidate channel cache on changes
+- [x] T029 [P] [US6] Implement list_folders and folder_contents operations in src/tg_mcp/ops/folders.py — list all folders with channel counts (TOON), list channels in specific folder with metrics
+- [x] T030 [P] [US6] Implement move_to_folder and create_folder operations in src/tg_mcp/ops/folders.py — move channel to folder (invalidate folder cache), create new folder by name, return confirmation
+- [x] T031 [US6] Implement subscribe, unsubscribe, and mute_channel operations in src/tg_mcp/ops/channels.py — subscribe by handle/link, unsubscribe with destructive=True + confirm gate (show subscriber count in warning, include re-subscribe hint on success), mute/unmute notifications. Invalidate channel cache on changes
 
 **Checkpoint**: `tg_execute op="unsubscribe" params={"channel":"@spam"}` → warning → `confirm=true` → success with re-subscribe hint
 
@@ -136,10 +136,10 @@
 
 **Independent Test**: Compare two channels → verify side-by-side metrics returned
 
-- [ ] T032 [P] [US7] Implement compare_channels operation in src/tg_mcp/ops/analytics.py — accept 2+ channel handles, fetch metrics (post frequency, avg views, subscribers, engagement rate) for each, return side-by-side TOON comparison
-- [ ] T033 [P] [US7] Implement find_duplicates operation in src/tg_mcp/ops/analytics.py — compare recent messages across channels by text similarity (substring/keyword overlap), group channels posting similar content, return duplicate pairs with similarity score
-- [ ] T034 [P] [US7] Implement inactive_channels operation in src/tg_mcp/ops/analytics.py — find channels with no posts in N days (default 30), return list sorted by last post date, TOON format
-- [ ] T035 [US7] Implement top_posts and engagement_ranking operations in src/tg_mcp/ops/analytics.py — top_posts: highest-engagement messages across channels in time window (by reactions+comments+views). engagement_ranking: rank channels by engagement rate (reactions+comments / views), return TOON lists
+- [x] T032 [P] [US7] Implement compare_channels operation in src/tg_mcp/ops/analytics.py — accept 2+ channel handles, fetch metrics (post frequency, avg views, subscribers, engagement rate) for each, return side-by-side TOON comparison
+- [x] T033 [P] [US7] Implement find_duplicates operation in src/tg_mcp/ops/analytics.py — compare recent messages across channels by text similarity (substring/keyword overlap), group channels posting similar content, return duplicate pairs with similarity score
+- [x] T034 [P] [US7] Implement inactive_channels operation in src/tg_mcp/ops/analytics.py — find channels with no posts in N days (default 30), return list sorted by last post date, TOON format
+- [x] T035 [US7] Implement top_posts and engagement_ranking operations in src/tg_mcp/ops/analytics.py — top_posts: highest-engagement messages across channels in time window (by reactions+comments+views). engagement_ranking: rank channels by engagement rate (reactions+comments / views), return TOON lists
 
 **Checkpoint**: `tg_execute op="compare_channels" params={"channels":["@ch1","@ch2"]}` returns comparison table
 
