@@ -80,3 +80,10 @@ All patterns from `research/mcp-design-patterns-guide.md`:
 - Session + cache + config: `~/.tg-mcp/`
 - Source code: `/Users/todmy/github/telegram-mcp/`
 - Never commit `.env` or `session.session`
+
+## Active Technologies
+- Python 3.11+ (async generators, ExceptionGroup support) + mcp SDK (pip), telethon >=1.36, aiosqlite >=0.20, python-dotenv >=1.0, cryptg >=0.4 (001-telegram-mcp-server)
+- SQLite with WAL mode (aiosqlite) — channel index, message cache, folder structure (001-telegram-mcp-server)
+
+## Recent Changes
+- 001-telegram-mcp-server: Added Python 3.11+ (async generators, ExceptionGroup support) + mcp SDK (pip), telethon >=1.36, aiosqlite >=0.20, python-dotenv >=1.0, cryptg >=0.4
