@@ -1,4 +1,4 @@
-# Telegram MCP Server
+# Godmode Telegram MCP
 
 MCP server that exposes full Telegram client capabilities to AI assistants (Claude Code, Perplexity, and other MCP-compatible clients). Uses Telethon (User API / MTProto) for channel reading, message search, reactions, folder management, and analytics across your subscribed channels.
 
@@ -42,8 +42,8 @@ This will show something like `/opt/homebrew/bin/python3.11` (Apple Silicon) or 
 ### 2. Clone and install
 
 ```bash
-git clone https://github.com/Todmy/telegram-connector-mcp.git
-cd telegram-connector-mcp
+git clone https://github.com/Todmy/godmode-telegram-mcp.git
+cd godmode-telegram-mcp
 python3.11 -m pip install -e .
 ```
 
@@ -125,7 +125,7 @@ Copy the full path (e.g. `/opt/homebrew/bin/python3.11`).
 4. Click **"Add"** (or **"+"**)
 5. Stay on the **Simple** tab
 6. Fill in:
-   - **Server Name:** `telegram-mcp`
+   - **Server Name:** `godmode-telegram-mcp`
    - **Command:** your full Python path + `-m tg_mcp`, for example:
      ```
      /opt/homebrew/bin/python3.11 -m tg_mcp
@@ -136,7 +136,7 @@ Copy the full path (e.g. `/opt/homebrew/bin/python3.11`).
 
 #### 6c. Enable the connector
 
-Go back to the Perplexity home screen. Under the search bar, click **Sources** and enable **telegram-mcp**.
+Go back to the Perplexity home screen. Under the search bar, click **Sources** and enable **godmode-telegram-mcp**.
 
 Now you can ask Perplexity things like:
 - "Show me recent messages from @channel_name"
@@ -162,7 +162,7 @@ Add to your Claude Code MCP settings (`~/.claude/settings.json`):
 ```json
 {
   "mcpServers": {
-    "telegram-mcp": {
+    "godmode-telegram-mcp": {
       "command": "python3.11",
       "args": ["-m", "tg_mcp"]
     }
@@ -298,4 +298,4 @@ The server uses the **Speakeasy Dynamic Toolsets** pattern: 5 static MCP tools k
 
 ## License
 
-Private.
+MIT

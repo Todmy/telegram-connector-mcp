@@ -1,4 +1,4 @@
-# Telegram MCP Server
+# Godmode Telegram MCP
 
 MCP server exposing full Telegram client capabilities to Claude Code. Uses Telethon (User API / MTProto) for channel reading, message search, reactions, folder management, and analytics across 200+ subscribed channels.
 
@@ -78,7 +78,7 @@ All patterns from `research/mcp-design-patterns-guide.md`:
 ## Data Locations
 
 - Session + cache + config: `~/.tg-mcp/`
-- Source code: `/Users/todmy/github/telegram-mcp/`
+- Source code: `/Users/todmy/github/godmode-telegram-mcp/`
 - Never commit `.env` or `session.session`
 
 ## Active Technologies

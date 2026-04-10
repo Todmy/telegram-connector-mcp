@@ -1,4 +1,4 @@
-# Tasks: Telegram MCP Server
+# Tasks: Godmode Telegram MCP
 
 **Input**: Design documents from `/specs/001-telegram-mcp-server/`
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/mcp-tools.md
