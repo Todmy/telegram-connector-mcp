@@ -15,6 +15,10 @@ from telethon.errors import (
     MsgIdInvalidError,
     ReactionInvalidError,
 )
+from telethon.tl.functions.messages import (
+    GetForumTopicsRequest,
+    ReadDiscussionRequest,
+)
 from telethon.tl.types import ReactionEmoji
 
 from tg_mcp import toon
@@ -336,7 +340,7 @@ async def forward_message(
 @operation(
     name="mark_read",
     category="interact",
-    description="Mark all messages in a channel as read. Idempotent — safe to call on already-read channels",
+    description="Mark all messages in a channel as read, including forum topics in supergroups. Idempotent — safe to call on already-read channels",
     destructive=False,
     idempotent=True,
 )
@@ -345,7 +349,12 @@ async def mark_read(
     channel: str,
     cache: Cache | None = None,
 ) -> str:
-    """Mark all messages in a channel as read."""
+    """Mark all messages in a channel as read.
+
+    For forum supergroups, also marks every topic with unread messages as read
+    via ReadDiscussionRequest. Without this, the main channel read acknowledgement
+    leaves per-topic unread badges intact.
+    """
     # --- Input validation ---
     if not channel or not channel.strip():
         raise OperationError(
@@ -371,7 +380,7 @@ async def mark_read(
         # Non-critical: proceed even if we can't get unread count
         pass
 
-    # --- Mark read ---
+    # --- Mark channel-level read ---
     try:
         await client.send_read_acknowledge(entity)
     except FloodWaitError as e:
@@ -392,10 +401,149 @@ async def mark_read(
             recovery="check channel access and retry",
         ) from exc
 
+    # --- Forum supergroups: mark each unread topic as read ---
+    topics_cleared = 0
+    topic_unread_total = 0
+    is_forum = bool(getattr(entity, "forum", False))
+
+    if is_forum:
+        try:
+            forum_result = await client(GetForumTopicsRequest(
+                peer=entity,
+                offset_date=None,
+                offset_id=0,
+                offset_topic=0,
+                limit=100,
+            ))
+            for topic in getattr(forum_result, "topics", []) or []:
+                unread = getattr(topic, "unread_count", 0) or 0
+                if unread <= 0:
+                    continue
+                try:
+                    await client(ReadDiscussionRequest(
+                        peer=entity,
+                        msg_id=topic.id,
+                        read_max_id=topic.top_message,
+                    ))
+                    topics_cleared += 1
+                    topic_unread_total += unread
+                except FloodWaitError as e:
+                    raise TelegramFloodWait(e.seconds) from e
+                except Exception:
+                    logger.exception(
+                        "ops.mark_read_topic_error",
+                        extra={
+                            "channel": channel,
+                            "topic_id": getattr(topic, "id", None),
+                            "topic_title": getattr(topic, "title", None),
+                        },
+                    )
+        except FloodWaitError as e:
+            raise TelegramFloodWait(e.seconds) from e
+        except Exception:
+            # Topic enumeration failed — main channel is already marked read.
+            # Log and proceed; partial success is better than raising.
+            logger.exception("ops.mark_read_topics_enum_error", extra={"channel": channel})
+
     handle = getattr(entity, "username", None)
     handle_display = f"@{handle}" if handle else getattr(entity, "title", channel)
 
-    if unread_before == 0:
+    # --- Format response ---
+    if unread_before == 0 and topics_cleared == 0:
         return f"{handle_display}: already read (0 unread)."
 
-    return f"Marked {handle_display} as read ({unread_before} messages were unread)."
+    parts = []
+    if unread_before > 0:
+        parts.append(f"{unread_before} channel messages")
+    if topics_cleared > 0:
+        parts.append(f"{topic_unread_total} messages across {topics_cleared} topics")
+
+    if not parts:
+        return f"Marked {handle_display} as read."
+
+    return f"Marked {handle_display} as read ({' + '.join(parts)})."
+
+
+# ---------------------------------------------------------------------------
+# list_topics (T029)
+# ---------------------------------------------------------------------------
+
+
+@operation(
+    name="list_topics",
+    category="channels",
+    description="List forum topics in a supergroup. Returns topic id, title, top_message, and unread_count. Empty list if channel is not a forum.",
+    destructive=False,
+    idempotent=True,
+)
+async def list_topics(
+    client: Any,
+    channel: str,
+    limit: int = 100,
+    cache: Cache | None = None,
+) -> str:
+    """List forum topics in a supergroup."""
+    if not channel or not channel.strip():
+        raise OperationError(
+            what="channel parameter is required",
+            expected="@handle, t.me link, or channel title",
+            example='tg_execute op="list_topics" params={"channel": "@UkrainianStartups"}',
+            recovery="provide a channel identifier",
+        )
+
+    if limit < 1 or limit > 100:
+        raise OperationError(
+            what=f"limit must be between 1 and 100, got: {limit}",
+            expected="integer 1-100",
+            example='tg_execute op="list_topics" params={"channel": "@handle", "limit": 50}',
+            recovery="use a limit between 1 and 100",
+        )
+
+    channel = channel.strip()
+    entity = await _resolve_single_channel(client, channel)
+
+    is_forum = bool(getattr(entity, "forum", False))
+    if not is_forum:
+        handle = getattr(entity, "username", None)
+        display = f"@{handle}" if handle else getattr(entity, "title", channel)
+        return f"{display} is not a forum supergroup — no topics."
+
+    try:
+        result = await client(GetForumTopicsRequest(
+            peer=entity,
+            offset_date=None,
+            offset_id=0,
+            offset_topic=0,
+            limit=limit,
+        ))
+    except FloodWaitError as e:
+        raise TelegramFloodWait(e.seconds) from e
+    except Exception as exc:
+        logger.exception("ops.list_topics_error", extra={"channel": channel})
+        raise OperationError(
+            what=f"Failed to list topics: {type(exc).__name__}: {exc}",
+            expected="successful topic listing",
+            example=f'tg_execute op="list_topics" params={{"channel": "{channel}"}}',
+            recovery="check channel access and retry",
+        ) from exc
+
+    topics = getattr(result, "topics", []) or []
+    if not topics:
+        return "No topics found."
+
+    rows = []
+    for t in topics:
+        rows.append({
+            "id": t.id,
+            "title": getattr(t, "title", "") or "",
+            "top_message": getattr(t, "top_message", 0) or 0,
+            "unread": getattr(t, "unread_count", 0) or 0,
+        })
+
+    total_unread = sum(r["unread"] for r in rows)
+    header = f"topics[{len(rows)}]{{id,title,top_message,unread}}:"
+    lines = [header]
+    for r in rows:
+        lines.append(f"{r['id']},{r['title']},{r['top_message']},{r['unread']}")
+    lines.append(f"\nsummary: {len(rows)} topics | {total_unread} unread")
+    return "\n".join(lines)
